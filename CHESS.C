@@ -1,58 +1,61 @@
 #include<graphics.h>
 #include<math.h>
+#include<string.h>
 int	startx,
 	midx,
 	endx,
 	starty,
 	midy,
 	endy,
-	blocksize,
-	pointcol,
-	pointrow,
+	cellsize,
+	pc,
+	pr,
 	turn,
-	movemode,
+	cpr,
+	cpc,
+	pawnup,
+	player[2],
 	paths[21];
 
 typedef struct {
-	char type;
-	int color;
-	int haspawn;
-	}pawn;
-pawn map[8][8];
+	char pawn;
+	int pawncolor;
+	int cellcolor;
+	}cell;
+cell map[8][8];
 
 int row(int value){
-   return starty + value*blocksize;
+   return starty + value*cellsize;
 }
 int col(int value){
-	return startx + value*blocksize;
+	return startx + value*cellsize;
 }
 int center(int value){
-	return value + blocksize/2;
+	return value + cellsize/2;
 }
 
-void setblock(int r,int c,char t,int col){
-	map[r][c].type=t;
-	map[r][c].color=col;
-	map[r][c].haspawn=1;
-
+void setcell(int r,int c,char p,int col){
+	map[r][c].pawn=p;
+	map[r][c].pawncolor=col;
 }
-void clearblock(int r,int c, pawn p){
+void clearcell(int r,int c){
 	int color;
 	color = r%2==c%2?WHITE:BLACK;
 	setfillstyle(SOLID_FILL,color);
-	bar(col(c),row(r),col(c)+blocksize,row(r)+blocksize);
-	p.type='N';
-	p.haspawn=0;
-
+	bar(col(c),row(r),col(c)+cellsize,row(r)+cellsize);
+	map[r][c].pawn='N';
+	map[r][c].pawncolor=-1;
+	map[r][c].cellcolor=color;
+	//printf("clearcell={%d,%d,%d}",r,c,map[r][c].pawncolor);
 }
 void init(){
 	int	graphdevice,
 		graphmode,
 		side,
 		i,j,
-		rowno,
-		player[2];
+		rowno;
 	graphdevice = DETECT;
+	pawnup=0;
 	initgraph(&graphdevice,&graphmode,"");
 
 	endx = midx = getmaxx()+1;
@@ -61,47 +64,53 @@ void init(){
 	if(midx>midy){
 		startx = (midx-midy)/2;
 		endx = startx+midy;
-		blocksize = midy/8;
+		cellsize = midy/8;
 	}
 	else{
 		starty = (midy-midx)/2;
 		endy = starty+midx;
-		blocksize = midx/9;
+		cellsize = midx/9;
 	}
 
 	player[0]=WHITE;
 	player[1]=player[0]==WHITE?BLACK:WHITE;
 	turn = WHITE;
-	movemode=0;
+	for(i=0;i<8;i++)
+		for(j=0;j<8;j++){
+			map[i][j].pawn='N';
+			map[i][j].pawncolor=-1;
+
+		}
 	for(side=0;side<2;side++){
 		//solilders
 		for(i=0;i<8;i++){
 			rowno= side==0?1:6;
-			setblock(rowno,i,'S',player[side]);
+			setcell(rowno,i,'S',player[side]);
 		}
 		rowno = side==0?0:7;  //0 1 2 (3 4) 5 6 7
 		for(i=0;i<2;i++){     //
 			 //bishop
-			 setblock(rowno,i==0?7-2:2,'B',player[side]);
+			 setcell(rowno,i==0?7-2:2,'B',player[side]);
 			//knight
-			 setblock(rowno,i==0?7-1:1,'H',player[side]);
+			 setcell(rowno,i==0?7-1:1,'H',player[side]);
 			 //Elephant
-			 setblock(rowno,i==0?7-0:0,'E',player[side]);
+			 setcell(rowno,i==0?7-0:0,'E',player[side]);
 
 		}
-
+	outtextxy(0,10,"WHITE");
+	outtextxy(endx+10,10,"BLACK");
 	}
 	if(player[1]==BLACK){
-		setblock(0,3,'Q',WHITE);
-		setblock(0,4,'K',WHITE);
-		setblock(7,3,'Q',BLACK);
-		setblock(7,4,'K',BLACK);
+		setcell(0,3,'Q',WHITE);
+		setcell(0,4,'K',WHITE);
+		setcell(7,3,'Q',BLACK);
+		setcell(7,4,'K',BLACK);
 	}
 	else{
-		setblock(0,3,'K',BLACK);
-		setblock(0,4,'Q',BLACK);
-		setblock(7,3,'K',WHITE);
-		setblock(7,4,'Q',WHITE);
+		setcell(0,3,'K',BLACK);
+		setcell(0,4,'Q',BLACK);
+		setcell(7,3,'K',WHITE);
+		setcell(7,4,'Q',WHITE);
 
 	}
 
@@ -112,26 +121,32 @@ void drawboard(){
 	setcolor(WHITE);
 	setfillstyle(SOLID_FILL,WHITE);
 	//draw vertical lines
-	for(i=startx;i<=endx;i+=blocksize)
+	for(i=startx;i<=endx;i+=cellsize)
 		line(i,starty,i,endy);
 	//draw horizontal lines
-	for(i=starty;i<=endy;i+=blocksize)
+	for(i=starty;i<=endy;i+=cellsize)
 		line(startx,i,endx,i);
 	//fill colors
 	for(i=0;i<8;i++)
-		for(j=0;j<8;j++)
-			if(i%2==j%2)
+		for(j=0;j<8;j++){
+			map[i][j].cellcolor=BLACK;
+			if(i%2==j%2){
 				floodfill(center(col(i)),center(row(j)),WHITE);
+				map[i][j].cellcolor=WHITE;
+			}
+		}
+
 }
-void drawpawn(int r,int c,pawn p){
+
+void drawcell(int r,int c){
 	int i,j,bordercolor,x,y;
-	bordercolor=p.color==WHITE?DARKGRAY:LIGHTGRAY;
+	bordercolor=map[r][c].pawncolor==WHITE?DARKGRAY:LIGHTGRAY;
 	setcolor(bordercolor);
-	setfillstyle(SOLID_FILL,p.color);
+	setfillstyle(SOLID_FILL,map[r][c].pawncolor);
 	x=center(col(c));
 	y=center(row(r));
 
-	switch(p.type){
+	switch(map[r][c].pawn){
 	case 'K':
 		rectangle(x-2,y-27,x+2,y-20);
 		rectangle(x-8,y-24,x+8,y-22);
@@ -194,78 +209,215 @@ void drawpawn(int r,int c,pawn p){
 
 
 }
-void selector(r,c){
-	int pr,pc;
-	pr=pointrow;
-	pc=pointcol;
-	switch(map[pr][pc].type){
-		case 'S':
-		case 'K':
-		case 'Q':
-		case 'E':
-		case 'H':
-		case 'B':
-		case 'X':clearblock(pr,pc,map[pr][pc]);break;
-	}
-	switch(map[pr][pc].type){
-		case 'S':
-		case 'K':
-		case 'Q':
-		case 'E':
-		case 'H':
-		case 'B':drawpawn(pr,pc,map[pr][pc]);
-	}
+void colorcell(int r,int c, int clr){
+	setcolor(0);
+	setfillstyle(SOLID_FILL,clr);
+	bar(col(c),row(r),col(c)+cellsize,row(r)+cellsize);
+	rectangle(col(c),row(r),col(c)+cellsize,row(r)+cellsize);
+	if(clr!=4)
+		map[r][c].cellcolor=clr;
+
+}
+int getbc(int r,int c){
+	return r%2==c%2?WHITE:BLACK;
+}
+void selector(int r,int c){
+	colorcell(pr,pc,map[pr][pc].cellcolor);
+	drawcell(pr,pc);
 	if(c==8)c=0;
 	else if(c==-1)c=7;
 	if(r==8)r=0;
 	else if(r==-1)r=7;
-	pointcol=pc=c;
-	pointrow=pr=r;
-	setfillstyle(SOLID_FILL,4);
-	bar(col(pointcol),row(pointrow),col(pointcol)+blocksize,row(pointrow)+blocksize);
-	switch(map[pr][pc].type){
-		case 'S':
-		case 'K':
-		case 'Q':
-		case 'E':
-		case 'H':
-		case 'B':drawpawn(pr,pc,map[pr][pc]);break;
-		default: map[pr][pc].type='X';
-	}
+	pc=c;
+	pr=r;
+	colorcell(pr,pc,4);
+	drawcell(pr,pc);
 }
 void render(){
 	int i,j;
+	char str[100],ch[1];
 	for(i=0;i<8;i++)
-		for(j=0;j<8;j++)
-			if(map[i][j].haspawn==1)
-				drawpawn(i,j,map[i][j]);
-			else if(map[i][j].haspawn!=1 && map[i][j].type!='N')
-				clearblock(i,j,map[i][j]);
+		for(j=0;j<8;j++)            {
+			if(map[i][j].pawn!='N')
+				drawcell(i,j);
+			//else if(map[i][j].haspawn!=1 && map[i][j].type!='N')
+			  //	clearblock(i,j,map[i][j]);
 
-	selector(pointrow,pointcol);
-	/*
-	for(i=0;i<8;i++)   {
+			/*itoa(i,str,36);
+			strcat(str,",");
+			itoa(j,ch,36);
+			strcat(str,ch);
+			outtextxy(col(i)+10,row(j)+blocksize/2,str);
+			  */		     }
+	selector(pr,pc);
+
+	/*for(i=0;i<8;i++)   {
 		for(j=0;j<8;j++)
-			printf("%d%d%c%d ",i,j,map[i][j].type,map[i][j].color);
+			printf("%d%d%c%d ",i,j,map[i][j].pawn,map[i][j].pawncolor);
 		printf("\n");
-	} */
+	}                    */
 
 }
-void colorblock(int i, int j){
-	clearblock(i,j,map[i][j]);
 
-	drawpawn(i,j,map[i][j]);
+void knight(int r,int c){
+	if(map[r][c].pawncolor!=turn&&r>=0&&c>=0&&r<8&&c<8)
+		colorcell(r,c,3);
 }
 void select(){
-	if(turn=map[pointrow][pointcol].color){
+	cell p;
+	int i,j,op;
+	if(pawnup==0){
 
+		if(turn==map[pr][pc].pawncolor){
+
+			p=map[pr][pc];
+			colorcell(pr,pc,12);
+			cpr=pr;
+			cpc=pc;
+			op=turn==0?15:0;
+			switch(p.pawn){
+
+
+				case 'Q':
+					for(i=pr+1,j=pc+1;i<8&&j<8;i++,j++)
+						if(map[i][j].pawncolor==turn)
+							break;
+						else if(map[i][j].pawncolor==op){
+							colorcell(i,j,3);
+							break;
+						}
+						else
+							colorcell(i,j,3);
+					for(i=pr+1,j=pc-1;i<8&&j>=0;i++,j--)
+						if(map[i][j].pawncolor==turn)
+							break;
+						else if(map[i][j].pawncolor==op){
+							colorcell(i,j,3);
+							break;
+						}
+						else
+							colorcell(i,j,3);
+				case 'E':
+
+					for(i=pr+1;i<8;i++)
+						if(map[i][pc].pawncolor==turn){
+							break;
+							}
+						else if(map[i][pc].pawncolor==op){
+							colorcell(i,pc,3);
+							break;
+						}
+						else
+							colorcell(i,pc,3);
+
+					for(i=pr-1;i>=0;i--)
+						if(map[i][pc].pawncolor==turn)
+							break;
+						else if(map[i][pc].pawncolor==op){
+							colorcell(i,pc,3);
+							break;
+						}
+						else
+							colorcell(i,pc,3);
+					for(i=pc+1;i<8;i++)
+						if(map[pr][i].pawncolor==turn)
+							break;
+						else if(map[pr][i].pawncolor==op){
+							colorcell(pr,i,3);
+							break;
+						}
+						else
+							colorcell(pr,i,3);
+					for(i=pc-1;i>=0;i--)
+						if(map[pr][i].pawncolor==turn)
+							break;
+						else if(map[pr][i].pawncolor==op){
+							colorcell(pr,i,3);
+							break;
+						}
+						else
+							colorcell(pr,i,3);
+					break;
+
+				case 'S':
+					if(player[0]==turn){
+						if(pr==1)
+							colorcell(pr+2,pc,3);
+						if(map[pr+1][pc].pawn=='N')
+							colorcell(pr+1,pc,3);
+						if(map[pr+1][pc+1].pawncolor==op)
+							colorcell(pr+1,pc+1,3);
+						if(map[pr+1][pc-1].pawncolor==op)
+							colorcell(pr+1,pc-1,3);
+					}
+					else{
+						if(pr==6)
+							colorcell(pr-2,pc,3);
+						if(map[pr-1][pc].pawn=='N')
+							colorcell(pr-1,pc,3);
+						if(map[pr-1][pc-1].pawncolor==op)
+							colorcell(pr-1,pc-1,3);
+						if(map[pr-1][pc+1].pawncolor==op)
+							colorcell(pr-1,pc+1,3);
+					}
+
+
+					break;
+				case 'B':for(i=pr+1,j=pc+1;i<8&&j<8;i++,j++)
+						if(map[i][j].pawncolor==turn)
+							break;
+						else if(map[i][j].pawncolor==op){
+							colorcell(i,j,3);
+							break;
+						}
+						else
+							colorcell(i,j,3);
+					for(i=pr+1,j=pc-1;i<8&&j>=0;i++,j--)
+						if(map[i][j].pawncolor==turn)
+							break;
+						else if(map[i][j].pawncolor==op){
+							colorcell(i,j,3);
+							break;
+						}else
+							colorcell(i,j,3);
+					break;
+				case 'H':
+					knight(pr-2,pc-1);
+					knight(pr-2,pc+1);
+					knight(pr-1,pc-2);
+					knight(pr-1,pc+2);
+					knight(pr+1,pc-2);
+					knight(pr+1,pc+2);
+					knight(pr+2,pc-1);
+					knight(pr+2,pc+1);
+
+			}
+			pawnup=1;
+		}
+	}
+	else{
+
+		if(map[pr][pc].cellcolor==3)
+			{
+			map[pr][pc].pawn=map[cpr][cpc].pawn;
+			map[pr][pc].pawncolor=map[cpr][cpc].pawncolor;
+			drawcell(pr,pc);
+			clearcell(cpr,cpc);
+			turn=turn==0?15:0;
+			}
+		colorcell(cpr,cpc,getbc(cpr,cpc));
+		for(i=0;i<8;i++)
+			for(j=0;j<8;j++)
+				if(map[i][j].cellcolor==3)
+					colorcell(i,j,getbc(i,j));
+		pawnup=0;
 	}
 }
 void main(){
 	int ch,i,j;
 	init();
-	pointcol=4;
-	pointrow=4;
+	pc=4;
+	pr=4;
 	drawboard();
 	render();
 
@@ -276,10 +428,10 @@ void main(){
 			case 13:select();break;
 			case 27:cleardevice();
 				exit(0);
-			case 77: selector(pointrow,pointcol+1);break;
-			case 75: selector(pointrow,pointcol-1);break;
-			case 72: selector(pointrow-1,pointcol);break;
-			case 80: selector(pointrow+1,pointcol);break;
+			case 77: selector(pr,pc+1);break;
+			case 75: selector(pr,pc-1);break;
+			case 72: selector(pr-1,pc);break;
+			case 80: selector(pr+1,pc);break;
 			}
 
 
